@@ -1,10 +1,10 @@
 # Scraper e Enriquecedor de Plano de Estudos da Jornada de Dados
 
-Este projeto é uma aplicação web construída com **Streamlit** que automatiza duas tarefas principais:
+Este projeto é uma aplicação web construída com Streamlit que automatiza três tarefas principais:
 
 - **Web Scraping:** Autentica-se na plataforma Jornada de Dados e extrai uma lista completa de todas as trilhas, cursos, módulos e aulas disponíveis, incluindo o slug para gerar links diretos e o status de conclusão de cada aula.
 - **Enriquecimento de Dados:** Utiliza um arquivo CSV com um plano de estudos fornecido pelo usuário e, através de correspondência difusa (fuzzy matching), associa cada módulo do plano ao seu link correspondente e status de conclusão, exportando um novo CSV com os dados enriquecidos.
-- **Exploração Interativa:** Permite filtrar, buscar e navegar de forma dinâmica por todo o conteúdo raspado, inclusive com busca fuzzy, filtragem por trilha e visualização de relevância dos resultados.
+- **Exploração Interativa:** Permite filtrar, buscar e navegar de forma dinâmica por todo o conteúdo raspado, inclusive com busca fuzzy, filtragem por trilha e visualização de relevância dos resultados. Na página de exploração dos cursos ("Jornada Courses"), a busca fuzzy é adaptativa: se o termo de busca possui apenas uma palavra, a correspondência é feita primeiro por palavra; se há múltiplas palavras, a busca tenta primeiro a aproximação por frase e, caso não encontre resultados, complementa com busca por palavra.
 
 O objetivo é transformar um plano de estudos estático numa ferramenta de navegação dinâmica, facilitando o acesso direto ao conteúdo da plataforma e o acompanhamento do progresso.
 
@@ -17,7 +17,7 @@ O objetivo é transformar um plano de estudos estático numa ferramenta de naveg
 - **Scraping Concorrente:** Utiliza multithreading para acelerar o processo de busca pelos detalhes das aulas, fazendo múltiplas requisições em paralelo.
 - **Status de Conclusão:** O scraper coleta o status de conclusão de cada aula diretamente da plataforma.
 - **Junção Inteligente de Dados:** Emprega a biblioteca `thefuzz` para fazer a correspondência entre os nomes dos módulos/cursos no plano de estudos e os nomes extraídos da plataforma, mesmo que não sejam idênticos.
-- **Dashboard e Busca Fuzzy:** Visualize seu progresso geral, filtre por trilha, busque por termos aproximados (inclusive com erros de digitação) e navegue diretamente para cada aula.
+- **Dashboard e Busca Fuzzy Adaptativa:** Visualize seu progresso geral, filtre por trilha, busque por termos aproximados (inclusive com erros de digitação) e navegue diretamente para cada aula. Na página de exploração dos cursos ("Jornada Courses"), a busca fuzzy adapta-se ao termo digitado: para termos de uma palavra, faz correspondência por palavra; para termos com múltiplas palavras, busca primeiro por frase e depois por palavra se necessário.
 - **Relevância dos Resultados:** A busca mostra o score de relevância de cada resultado.
 - **Exportação de Resultados:** Gera um arquivo CSV final com o plano de estudos original enriquecido com colunas de link da aula e status de conclusão.
 
