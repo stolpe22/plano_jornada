@@ -2,48 +2,55 @@
 
 Este projeto é uma aplicação web construída com **Streamlit** que automatiza duas tarefas principais:
 
-- **Web Scraping:** Autentica-se na plataforma Jornada de Dados e extrai uma lista completa de todas as trilhas, cursos, módulos e aulas disponíveis, incluindo o slug para gerar links diretos.
-- **Enriquecimento de Dados:** Utiliza um arquivo CSV com um plano de estudos fornecido pelo utilizador e, através de correspondência difusa (fuzzy matching), associa cada módulo do plano ao seu link correspondente, exportando um novo CSV com os dados enriquecidos.
+- **Web Scraping:** Autentica-se na plataforma Jornada de Dados e extrai uma lista completa de todas as trilhas, cursos, módulos e aulas disponíveis, incluindo o slug para gerar links diretos e o status de conclusão de cada aula.
+- **Enriquecimento de Dados:** Utiliza um arquivo CSV com um plano de estudos fornecido pelo usuário e, através de correspondência difusa (fuzzy matching), associa cada módulo do plano ao seu link correspondente e status de conclusão, exportando um novo CSV com os dados enriquecidos.
 
-O objetivo é transformar um plano de estudos estático numa ferramenta de navegação dinâmica, facilitando o acesso direto ao conteúdo da plataforma.
+O objetivo é transformar um plano de estudos estático numa ferramenta de navegação dinâmica, facilitando o acesso direto ao conteúdo da plataforma e o acompanhamento do progresso.
 
 ---
 
 ## ✨ Funcionalidades
 
-- **Interface Web Simples:** Uma interface amigável criada com Streamlit que guia o utilizador através do processo.
-- **Autenticação Segura:** O utilizador insere as suas credenciais, que são usadas para criar uma sessão autenticada para a raspagem dos dados.
-- **Scraping Concorrente:** Utiliza multithreading para acelerar significativamente o processo de busca pelos detalhes das aulas, fazendo múltiplas requisições em paralelo.
-- **Junção Inteligente de Dados:** Emprega a biblioteca thefuzz para fazer a correspondência entre os nomes dos módulos no plano de estudos e os nomes extraídos da plataforma, mesmo que não sejam idênticos.
-- **Exportação de Resultados:** Gera um ficheiro CSV final com o plano de estudos original enriquecido com uma nova coluna contendo os links diretos para a primeira aula de cada módulo.
+- **Interface Web Simples:** Uma interface amigável criada com Streamlit que guia o usuário através do processo.
+- **Autenticação Segura:** O usuário insere suas credenciais, que são usadas para criar uma sessão autenticada para o scraping dos dados.
+- **Scraping Concorrente:** Utiliza multithreading para acelerar o processo de busca pelos detalhes das aulas, fazendo múltiplas requisições em paralelo.
+- **Status de Conclusão:** O scraper coleta o status de conclusão de cada aula diretamente da plataforma.
+- **Junção Inteligente de Dados:** Emprega a biblioteca `thefuzz` para fazer a correspondência entre os nomes dos módulos/cursos no plano de estudos e os nomes extraídos da plataforma, mesmo que não sejam idênticos.
+- **Dashboard de Progresso:** Visualize seu progresso geral e por trilha, além de editar e navegar diretamente para cada aula.
+- **Exportação de Resultados:** Gera um arquivo CSV final com o plano de estudos original enriquecido com colunas de link da aula e status de conclusão.
 
 ---
 
 ## 📂 Estrutura do Projeto
 
 ```
-/
-|
-|--- dados/
-|    |--- plano_de_estudos.csv              # INPUT: O seu plano de estudos.
-|    |--- cursos_jornada.csv                # OUTPUT: Gerado pelo scraper.
-|    |--- plano_de_estudos_com_links.csv    # OUTPUT: O resultado final.
-|
-|--- modules/
-|    |--- authenticator.py                  # Lida com a autenticação na plataforma.
-|    |--- scraper.py                        # Contém toda a lógica de web scraping.
-|    |--- data_joiner.py                    # Contém a lógica para juntar os dados.
-|
-|--- app.py                                # Ficheiro principal da aplicação Streamlit.
-|
-|--- requirements.txt                      # Lista de dependências do projeto.
+PLANO_JORNADA/
+│
+├── dados/
+│   ├── plano_de_estudos.csv              # INPUT: Seu plano de estudos.
+│   ├── cursos_jornada.csv                # OUTPUT: Gerado pelo scraper.
+│   ├── plano_de_estudos_com_links.csv    # OUTPUT: O resultado final com links e status.
+│
+├── modules/
+│   ├── authenticator.py                  # Autenticação na plataforma.
+│   ├── scraper.py                        # Lógica completa de scraping.
+│   ├── data_joiner.py                    # Junção e enriquecimento dos dados via fuzzy matching.
+│
+├── pages/
+│   ├── 1_scraper_page.py                 # Página Streamlit para scraping e junção.
+│   ├── 2_dashboard_page.py               # Página Streamlit para visualização do progresso.
+│
+├── app.py                                # Página inicial da aplicação Streamlit.
+├── requirements.txt                      # Lista de dependências do projeto.
+├── README.md                             # Este arquivo.
+├── .gitignore
 ```
 
 ---
 
 ## 🚀 Como Configurar e Executar
 
-Siga os passos abaixo para executar o projeto na sua máquina local.
+Siga os passos abaixo para executar o projeto localmente.
 
 ### 1. Pré-requisitos
 
@@ -51,7 +58,7 @@ Siga os passos abaixo para executar o projeto na sua máquina local.
 
 ### 2. Instalação
 
-Clone ou descarregue este repositório. Navegue até a pasta raiz do projeto e crie um ambiente virtual:
+Clone este repositório e crie um ambiente virtual:
 
 ```bash
 # Criar ambiente virtual
@@ -64,7 +71,7 @@ python -m venv .venv
 source .venv/bin/activate
 ```
 
-Instale as dependências listadas no requirements.txt:
+Instale as dependências:
 
 ```bash
 pip install -r requirements.txt
@@ -73,51 +80,59 @@ pip install -r requirements.txt
 ### 3. Preparar o Plano de Estudos
 
 - Crie a pasta `dados` na raiz do projeto, caso não exista.
-- Dentro da pasta `dados`, coloque o seu ficheiro CSV com o plano de estudos e certifique-se de que o nome dele é `plano_de_estudos.csv`.
-- A primeira linha do seu CSV deve ser o cabeçalho, contendo pelo menos as colunas **Trilha** e **Módulo**.
+- Coloque o seu arquivo CSV de plano de estudos como `plano_de_estudos.csv` dentro da pasta `dados`.
+- O CSV deve ter pelo menos as colunas **Trilha** e **Módulo** (ou equivalentes).
 
 ### 4. Executar a Aplicação
 
-Com o ambiente virtual ativado, execute o seguinte comando no terminal, a partir da pasta raiz do projeto:
+Com o ambiente virtual ativado, rode:
 
 ```bash
 streamlit run app.py
 ```
 
-O seu navegador abrirá automaticamente com a interface da aplicação.
+A interface abrirá no navegador.
 
 ---
 
 ## 📖 Como Usar
 
-A interface é dividida em dois passos simples:
+A aplicação está dividida em duas páginas principais na barra lateral do Streamlit:
 
-### 1. Fazer o Scraping
+### 1. Scraper & Junção
 
-- Insira o seu e-mail e senha da plataforma Jornada de Dados.
-- Clique no botão **"Fazer Scraping Agora"**.
-- Aguarde o processo terminar. Pode acompanhar o progresso na área de log que aparecerá. Ao final, será criado o ficheiro `dados/cursos_jornada.csv`.
+- Insira seu e-mail e senha da plataforma Jornada de Dados.
+- Clique em **"Fazer Scraping Agora"** para coletar todos os dados de cursos, módulos e aulas, incluindo links e status de conclusão.
+- Após o scraping, clique em **"Gerar Links no Plano de Estudos"** para fazer a junção entre seu plano e os dados coletados, gerando o arquivo enriquecido `plano_de_estudos_com_links.csv`.
 
-### 2. Gerar Links no Plano de Estudos
+### 2. Dashboard
 
-- Após o scraping ser concluído com sucesso, o botão **"Gerar Links no Plano de Estudos"** será habilitado.
-- Clique nele para iniciar o processo de correspondência.
-- Ao final, a aplicação exibirá uma amostra do resultado e disponibilizará um botão para descarregar o CSV final, `plano_de_estudos_com_links.csv`.
+- Visualize seu progresso geral e por trilha.
+- Veja métricas, barras de progresso e uma tabela interativa com links diretos para cada aula. É possível marcar aulas como concluídas diretamente pela interface.
 
 ---
 
 ## 🛠️ Tecnologias Utilizadas
 
-- **Streamlit:** Para a criação da interface web.
-- **Requests & BeautifulSoup4:** Para a comunicação HTTP e parsing do HTML.
-- **Pandas:** Para a manipulação dos dados e criação dos ficheiros CSV.
-- **TheFuzz (FuzzyWuzzy):** Para a lógica de correspondência de texto difusa.
-- **Concurrent.futures:** Para acelerar o scraping através de requisições paralelas (multithreading).
+- **Streamlit:** Interface web interativa.
+- **Requests & BeautifulSoup4:** Comunicação HTTP e parsing do HTML.
+- **Pandas:** Manipulação de dados e geração dos CSVs.
+- **TheFuzz (FuzzyWuzzy):** Correspondência difusa de texto.
+- **Concurrent.futures:** Multithreading para acelerar scraping.
+- **Os, Json:** Utilidades para manipulação de arquivos e dados.
 
 ---
 
 ## 👨‍💻 Contribuição
 
 Pull requests são bem-vindos! Sinta-se à vontade para abrir issues ou sugerir melhorias.
+
+---
+
+## 📎 Observações
+
+- O scraper pode demorar alguns minutos, dependendo da quantidade de cursos e módulos.
+- Certifique-se que seu plano está padronizado para melhores resultados na correspondência.
+- O status de conclusão das aulas é extraído diretamente da plataforma, permitindo acompanhamento do progresso.
 
 ---
