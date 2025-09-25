@@ -7,7 +7,9 @@ import pandas as pd
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 # --- Funções de Extração ---
+
 def extrair_componentes_modulos(html):
+    """Extrai os dados de inicialização de todos os componentes de módulo."""
     soup = BeautifulSoup(html, 'html.parser')
     dados_dos_modulos = []
     divs_componentes = soup.find_all("div", attrs={"wire:initial-data": True})
@@ -23,19 +25,28 @@ def extrair_componentes_modulos(html):
             pass
     return dados_dos_modulos
 
-def extrair_ids_das_aulas(html):
+def extrair_aulas_com_status(html):
+    """
+    MODIFICADO: Extrai uma lista de dicionários, cada um com o ID da aula e seu status de conclusão.
+    """
     soup = BeautifulSoup(html, 'html.parser')
-    ids = []
+    aulas = []
     for li in soup.find_all("li", attrs={"wire:key": lambda k: k and 'lesson.' in k}):
         try:
             lesson_id = int(li["wire:key"].split("lesson.")[1])
-            ids.append(lesson_id)
+            x_data = li.get('x-data', '{}')
+            # Busca pela string exata 'finished:true' no atributo, ignorando espaços e quebras de linha
+            status_concluida = "finished:true" in x_data.replace(" ", "").replace("\n", "")
+            aulas.append({'id': lesson_id, 'concluida': status_concluida})
         except (ValueError, IndexError):
             continue
-    return ids
+    return aulas
 
 # --- Funções de Chamada de API ---
+
 def chamar_learning_center_init(session, csrf_token, link_curso):
+    """Carrega a página e chama o método 'init' para obter o HTML completo do curso."""
+    print("  ➡️  Carregando estrutura do curso (chamada init)...")
     try:
         resp_curso_inicial = session.get(link_curso, timeout=60)
         resp_curso_inicial.raise_for_status()
@@ -49,11 +60,14 @@ def chamar_learning_center_init(session, csrf_token, link_curso):
         url = "https://jornadadedados.alpaclass.com/livewire/message/v2.portal.learning-center"
         resp = session.post(url, headers=headers, json=payload, timeout=60)
         resp.raise_for_status()
-        return resp.json().get('effects', {}).get('html', ''), dados_learning_center
-    except Exception:
-        return None, None
+        print(f"  ✅ [INIT] Status: {resp.status_code}")
+        return resp.json().get('effects', {}).get('html', '')
+    except Exception as e:
+        print(f"  ❌ Erro na chamada 'init': {e}")
+        return None
 
-def chamar_course_module_card_e_pegar_ids(session, csrf_token, dados_componente_card, link_curso):
+def chamar_course_module_card_e_pegar_aulas(session, csrf_token, dados_componente_card, link_curso):
+    """MODIFICADO: Chama a API do módulo e retorna uma lista de aulas com ID e status."""
     payload = {"fingerprint": dados_componente_card['fingerprint'], "serverMemo": dados_componente_card['serverMemo'], "updates": [{"type": "callMethod", "payload": {"id": dados_componente_card['fingerprint']['id'], "method": "loadLessons", "params": []}}, {"type": "callMethod", "payload": {"id": dados_componente_card['fingerprint']['id'], "method": "$set", "params": ["expanded", True]}}]}
     headers = {"accept": "application/json", "content-type": "application/json", "x-csrf-token": csrf_token, "x-livewire": "true", "Referer": link_curso, "User-Agent": "Mozilla/5.0"}
     url = "https://jornadadedados.alpaclass.com/livewire/message/v2.portal.course-module-card"
@@ -61,11 +75,12 @@ def chamar_course_module_card_e_pegar_ids(session, csrf_token, dados_componente_
         resp = session.post(url, headers=headers, json=payload, timeout=60)
         resp.raise_for_status()
         html_resposta = resp.json().get('effects', {}).get('html', '')
-        return extrair_ids_das_aulas(html_resposta)
+        return extrair_aulas_com_status(html_resposta)
     except requests.exceptions.RequestException:
         return []
 
 def buscar_detalhes_completos_aula(session, csrf_token, dados_lesson_component, link_curso, lesson_id):
+    """Chama a API active-lesson-component para pegar todos os detalhes, incluindo o slug."""
     if not dados_lesson_component: return None
     payload = {"fingerprint": dados_lesson_component['fingerprint'], "serverMemo": dados_lesson_component['serverMemo'], "updates": [{"type": "callMethod", "payload": {"id": dados_lesson_component['fingerprint']['id'], "method": "loadLesson", "params": [int(lesson_id)]}}]}
     headers = {"accept": "application/json", "content-type": "application/json", "x-csrf-token": csrf_token, "x-livewire": "true", "Referer": link_curso, "User-Agent": "Mozilla/5.0"}
@@ -117,7 +132,7 @@ def raspar_curso(session, link_curso, log_area):
         soup_curso = BeautifulSoup(resp_curso_inicial.text, 'html.parser')
         csrf_token = soup_curso.find('meta', {'name': 'csrf-token'})['content']
         
-        html_real_do_curso, _ = chamar_learning_center_init(session, csrf_token, link_curso)
+        html_real_do_curso = chamar_learning_center_init(session, csrf_token, link_curso)
         if not html_real_do_curso: return None
         
         soup_real = BeautifulSoup(html_real_do_curso, 'html.parser')
@@ -140,19 +155,24 @@ def raspar_curso(session, link_curso, log_area):
             id_mod = dados_modulo.get('id_modulo')
             if not id_mod: continue
             
-            ids_aulas = chamar_course_module_card_e_pegar_ids(session, csrf_token, dados_modulo, link_curso)
-            if not ids_aulas: continue
+            aulas_com_status = chamar_course_module_card_e_pegar_aulas(session, csrf_token, dados_modulo, link_curso)
+            if not aulas_com_status: continue
 
-            log_area.text(f"    - Módulo {id_mod}: Buscando {len(ids_aulas)} aulas em paralelo...")
+            log_area.text(f"    - Módulo {id_mod}: Buscando detalhes de {len(aulas_com_status)} aulas em paralelo...")
+            
+            status_map = {aula['id']: aula['concluida'] for aula in aulas_com_status}
+            
             with ThreadPoolExecutor(max_workers=15) as executor:
-                future_to_id = {executor.submit(buscar_detalhes_completos_aula, session, csrf_token, dados_lesson_component, link_curso, aula_id): aula_id for aula_id in ids_aulas}
+                future_to_id = {executor.submit(buscar_detalhes_completos_aula, session, csrf_token, dados_lesson_component, link_curso, aula['id']): aula['id'] for aula in aulas_com_status}
                 for future in as_completed(future_to_id):
                     detalhes_aula = future.result()
                     if detalhes_aula:
+                        aula_id = detalhes_aula.get('id')
+                        detalhes_aula['concluida'] = status_map.get(aula_id, False)
                         curso_data["aulas"].append(detalhes_aula)
         return curso_data
     except Exception as e:
-        log_area.text(f"  ❌ Erro ao raspar o curso {link_curso}: {e}")
+        log_area.text(f"  ❌ Erro geral ao raspar o curso {link_curso}: {e}")
         return None
 
 def run_full_scraper(session, log_area):
@@ -174,8 +194,6 @@ def run_full_scraper(session, log_area):
             cursos_processados += 1
             log_area.text(f"  ({cursos_processados}/{total_cursos}) Raspando o curso: '{nome_curso}'")
             
-            # <<< CORREÇÃO APLICADA AQUI >>>
-            # Passando todos os argumentos necessários na ordem correta
             dados_do_curso = raspar_curso(session, link_curso, log_area)
             
             if dados_do_curso and dados_do_curso.get("aulas"):
@@ -183,17 +201,24 @@ def run_full_scraper(session, log_area):
                     slug_da_aula = aula.get('slug')
                     link_da_aula = f"{link_curso.split('?')[0]}?lessonSlug={slug_da_aula}" if slug_da_aula else None
                     linha = {
-                        'trilha_nome': nome_trilha, 'curso_nome': nome_curso, 'curso_link': link_curso,
-                        'modulo_id': aula.get('module_id'), 'modulo_nome': aula.get('module', {}).get('name'),
-                        'aula_id': aula.get('id'), 'aula_nome': aula.get('name'),
-                        'aula_slug': slug_da_aula, 'aula_link': link_da_aula
+                        'trilha_nome': nome_trilha,
+                        'curso_nome': nome_curso,
+                        'curso_link': link_curso,
+                        'modulo_id': aula.get('module_id'),
+                        'modulo_nome': aula.get('module', {}).get('name'),
+                        'aula_id': aula.get('id'),
+                        'aula_nome': aula.get('name'),
+                        'aula_slug': slug_da_aula,
+                        'aula_link': link_da_aula,
+                        'aula_concluida': aula.get('concluida', False) # <-- Coluna final adicionada
                     }
                     lista_de_aulas.append(linha)
             else:
                 linha = {
                     'trilha_nome': nome_trilha, 'curso_nome': nome_curso, 'curso_link': link_curso,
                     'modulo_id': None, 'modulo_nome': 'N/A', 'aula_id': None,
-                    'aula_nome': 'N/A', 'aula_slug': None, 'aula_link': None
+                    'aula_nome': 'N/A', 'aula_slug': None, 'aula_link': None,
+                    'aula_concluida': None
                 }
                 lista_de_aulas.append(linha)
 
