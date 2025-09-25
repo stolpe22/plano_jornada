@@ -76,7 +76,7 @@ else:
         default=default_selection
     )
 
-    texto_busca = st.sidebar.text_input("Buscar por termo (ex: pyton, airbyte, pipeline)")
+    texto_busca = st.sidebar.text_input("Buscar por termo (ex: pyton, pipeline airflow)")
     sensibilidade = st.sidebar.slider("Sensibilidade da Busca (%)", min_value=30, max_value=100, value=80, help="Quão parecido o resultado deve ser com a sua busca. Para erros de digitação, 80-90% é um bom valor.")
 
     # Aplicar filtros
@@ -97,37 +97,52 @@ else:
             df_filtrado['aula_conteudo_html'].apply(lambda x: clean_text(BeautifulSoup(x, 'html.parser').get_text()))
         )
         
-        # --- LÓGICA DE BUSCA DUPLA ---
+        # --- LÓGICA DE BUSCA INTELIGENTE (ATUALIZADA) ---
         
-        # 1. Tenta a busca por frase primeiro
-        df_filtrado['score'] = df_filtrado['texto_pesquisavel'].apply(
-            lambda x: fuzz.token_set_ratio(texto_busca_limpo, x)
-        )
-        resultados_frase = df_filtrado[df_filtrado['score'] >= sensibilidade]
+        # Verifica se a busca tem mais de uma palavra
+        if len(texto_busca_limpo.split()) > 1:
+            # Estratégia para MÚLTIPLAS palavras: primeiro frase, depois palavra
+            st.sidebar.info("Buscando por frase...")
+            df_filtrado['score'] = df_filtrado['texto_pesquisavel'].apply(
+                lambda x: fuzz.token_set_ratio(texto_busca_limpo, x)
+            )
+            resultados = df_filtrado[df_filtrado['score'] >= sensibilidade]
 
-        # 2. Se não achar nada, tenta a busca por aproximação de palavra
-        if resultados_frase.empty:
-            st.sidebar.warning("Nenhum resultado por frase. Tentando busca por aproximação...")
+            if resultados.empty:
+                st.sidebar.warning("Nenhum resultado por frase. Tentando por aproximação...")
+                df_filtrado['score'] = df_filtrado['texto_pesquisavel'].apply(
+                    lambda x: calculate_word_match_score(texto_busca_limpo, x)
+                )
+                df_filtrado = df_filtrado[df_filtrado['score'] >= sensibilidade]
+        else:
+            # Estratégia para UMA palavra: primeiro aproximação, depois frase
+            st.sidebar.info("Buscando por aproximação de palavra...")
             df_filtrado['score'] = df_filtrado['texto_pesquisavel'].apply(
                 lambda x: calculate_word_match_score(texto_busca_limpo, x)
             )
-            df_filtrado = df_filtrado[df_filtrado['score'] >= sensibilidade].sort_values(by='score', ascending=False)
-        else:
-            st.sidebar.success("Resultados encontrados por busca de frase.")
-            df_filtrado = resultados_frase.sort_values(by='score', ascending=False)
+            resultados = df_filtrado[df_filtrado['score'] >= sensibilidade]
+            
+            if resultados.empty:
+                st.sidebar.warning("Nenhum resultado por aproximação. Tentando busca por frase...")
+                df_filtrado['score'] = df_filtrado['texto_pesquisavel'].apply(
+                    lambda x: fuzz.token_set_ratio(texto_busca_limpo, x)
+                )
+                df_filtrado = df_filtrado[df_filtrado['score'] >= sensibilidade]
+
+        # Ordena o resultado final pelo score
+        df_filtrado = df_filtrado.sort_values(by='score', ascending=False)
 
     # --- Exibição dos Dados ---
     st.markdown(f"**Exibindo {len(df_filtrado)} aulas encontradas:**")
 
-    # Adiciona a coluna de Relevância
-    col_header = st.columns((1, 3, 3, 5, 1, 2, 1)) # <-- Proporção da coluna de relevância diminuída
+    col_header = st.columns((1, 3, 3, 4, 1, 2, 1.5))
     headers = ["Feita", "Curso", "Módulo", "Aula", "Link", "Detalhes", "Relevância"]
     for col, header in zip(col_header, headers):
         col.markdown(f"**{header}**")
     st.divider()
 
     for index, row in df_filtrado.iterrows():
-        col1, col2, col3, col4, col5, col6, col7 = st.columns((1, 3, 3, 5, 1, 2, 1)) # <-- Proporção da coluna de relevância diminuída
+        col1, col2, col3, col4, col5, col6, col7 = st.columns((1, 3, 3, 4, 1, 2, 1.5))
         
         with col1:
             st.checkbox("", value=row.get('aula_concluida', False), key=f"check_{row.get('aula_id', index)}", label_visibility="collapsed")
@@ -156,4 +171,3 @@ else:
         with col7:
             if 'score' in row and pd.notna(row['score']):
                 st.progress(int(row['score']), text=f"{row['score']}%")
-
