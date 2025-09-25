@@ -26,16 +26,13 @@ def extrair_componentes_modulos(html):
     return dados_dos_modulos
 
 def extrair_aulas_com_status(html):
-    """
-    MODIFICADO: Extrai uma lista de dicionários, cada um com o ID da aula e seu status de conclusão.
-    """
+    """Extrai uma lista de dicionários, cada um com o ID da aula e seu status de conclusão."""
     soup = BeautifulSoup(html, 'html.parser')
     aulas = []
     for li in soup.find_all("li", attrs={"wire:key": lambda k: k and 'lesson.' in k}):
         try:
             lesson_id = int(li["wire:key"].split("lesson.")[1])
             x_data = li.get('x-data', '{}')
-            # Busca pela string exata 'finished:true' no atributo, ignorando espaços e quebras de linha
             status_concluida = "finished:true" in x_data.replace(" ", "").replace("\n", "")
             aulas.append({'id': lesson_id, 'concluida': status_concluida})
         except (ValueError, IndexError):
@@ -67,7 +64,7 @@ def chamar_learning_center_init(session, csrf_token, link_curso):
         return None
 
 def chamar_course_module_card_e_pegar_aulas(session, csrf_token, dados_componente_card, link_curso):
-    """MODIFICADO: Chama a API do módulo e retorna uma lista de aulas com ID e status."""
+    """Chama a API do módulo e retorna uma lista de aulas com ID e status."""
     payload = {"fingerprint": dados_componente_card['fingerprint'], "serverMemo": dados_componente_card['serverMemo'], "updates": [{"type": "callMethod", "payload": {"id": dados_componente_card['fingerprint']['id'], "method": "loadLessons", "params": []}}, {"type": "callMethod", "payload": {"id": dados_componente_card['fingerprint']['id'], "method": "$set", "params": ["expanded", True]}}]}
     headers = {"accept": "application/json", "content-type": "application/json", "x-csrf-token": csrf_token, "x-livewire": "true", "Referer": link_curso, "User-Agent": "Mozilla/5.0"}
     url = "https://jornadadedados.alpaclass.com/livewire/message/v2.portal.course-module-card"
@@ -126,6 +123,7 @@ def raspar_pagina_de_conteudos(session, log_area):
         return {}
 
 def raspar_curso(session, link_curso, log_area):
+    """Função que usa concorrência para buscar slugs e status de forma rápida."""
     try:
         resp_curso_inicial = session.get(link_curso)
         resp_curso_inicial.raise_for_status()
@@ -210,7 +208,9 @@ def run_full_scraper(session, log_area):
                         'aula_nome': aula.get('name'),
                         'aula_slug': slug_da_aula,
                         'aula_link': link_da_aula,
-                        'aula_concluida': aula.get('concluida', False) # <-- Coluna final adicionada
+                        'aula_concluida': aula.get('concluida', False),
+                        'aula_sumario': aula.get('summary'),
+                        'aula_conteudo_html': aula.get('html_content')
                     }
                     lista_de_aulas.append(linha)
             else:
@@ -218,7 +218,9 @@ def run_full_scraper(session, log_area):
                     'trilha_nome': nome_trilha, 'curso_nome': nome_curso, 'curso_link': link_curso,
                     'modulo_id': None, 'modulo_nome': 'N/A', 'aula_id': None,
                     'aula_nome': 'N/A', 'aula_slug': None, 'aula_link': None,
-                    'aula_concluida': None
+                    'aula_concluida': None,
+                    'aula_sumario': None,
+                    'aula_conteudo_html': None
                 }
                 lista_de_aulas.append(linha)
 
