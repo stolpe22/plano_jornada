@@ -1,5 +1,7 @@
+# app.py
+
 import streamlit as st
-import os
+from modules import database_manager as dbm
 
 # --- Configuração da Página Principal ---
 st.set_page_config(
@@ -8,8 +10,8 @@ st.set_page_config(
     layout="wide"
 )
 
-# Garante que a pasta 'dados' exista
-os.makedirs('dados', exist_ok=True)
+# Garante que o banco de dados e as tabelas existam
+dbm.init_db()
 
 # --- Página de Boas-Vindas ---
 st.title("Bem-vindo ao Jornada Scraper & Planner 🚀")
@@ -20,13 +22,14 @@ st.markdown(
     
     ### Como usar:
     
-    1.  **Navegue para a página `scraper page`** na barra lateral para começar.
-    2.  Insira suas credenciais para fazer o scraping de todos os cursos.
-    3.  Após o scraping, clique para fazer a junção com seu plano de estudos.
-    4.  **Vá para a página `dashboard page`** para ver seu dashboard de progresso!
+    1.  **Navegue para a página `Scraper e Junção`** na barra lateral para começar.
+    2.  **(Primeira vez)** Faça o upload do seu arquivo `plano_de_estudos.csv`.
+    3.  Insira suas credenciais para fazer o scraping de todos os cursos e módulos.
+    4.  Após o scraping, clique para gerar os links e status no seu plano.
+    5.  **Vá para a página `Dashboard`** para ver seu progresso!
+    6.  **Use a página `Cursos da Jornada`** para pesquisar todo o conteúdo da plataforma.
     
     Use o menu na barra lateral à esquerda para navegar entre as seções.
     """
 )
 st.sidebar.success("Selecione uma página acima.")
-
