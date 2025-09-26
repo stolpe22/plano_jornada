@@ -1,0 +1,15 @@
+# .dockerignore
+
+# Ignorar o ambiente virtual
+.venv
+venv
+__pycache__
+
+# Ignorar arquivos do Git e do VSCode
+.git
+.vscode
+
+# MUITO IMPORTANTE: Ignorar a pasta de dados.
+# O banco de dados não deve ser parte da imagem,
+# ele será "montado" de fora usando um volume.
+dados/

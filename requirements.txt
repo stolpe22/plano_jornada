@@ -2,6 +2,5 @@ requests
 beautifulsoup4
 pandas
 streamlit
-httpx
 thefuzz
 python-levenshtein

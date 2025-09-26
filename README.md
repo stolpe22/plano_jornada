@@ -1,148 +1,192 @@
-# Scraper e Enriquecedor de Plano de Estudos da Jornada de Dados
+# Jornada Planner 🚀 – Scraper, Enriquecimento e Dashboard do Plano de Estudos
 
-Este projeto é uma aplicação web construída com Streamlit que automatiza três tarefas principais:
-
-- **Web Scraping:** Autentica-se na plataforma Jornada de Dados e extrai uma lista completa de todas as trilhas, cursos, módulos e aulas disponíveis, incluindo o slug para gerar links diretos e o status de conclusão de cada aula.
-- **Enriquecimento de Dados:** Utiliza um arquivo CSV com um plano de estudos fornecido pelo usuário e, através de correspondência difusa (fuzzy matching), associa cada módulo do plano ao seu link correspondente e status de conclusão, exportando um novo CSV com os dados enriquecidos.
-- **Exploração Interativa:** Permite filtrar, buscar e navegar de forma dinâmica por todo o conteúdo raspado, inclusive com busca fuzzy, filtragem por trilha e visualização de relevância dos resultados. Na página de exploração dos cursos ("Jornada Courses"), a busca fuzzy é adaptativa: se o termo de busca possui apenas uma palavra, a correspondência é feita primeiro por palavra; se há múltiplas palavras, a busca tenta primeiro a aproximação por frase e, caso não encontre resultados, complementa com busca por palavra.
-
-O objetivo é transformar um plano de estudos estático numa ferramenta de navegação dinâmica, facilitando o acesso direto ao conteúdo da plataforma e o acompanhamento do progresso.
+Uma solução interativa para transformar o plano de estudos do **Acelerador de Carreiras** da Jornada de Dados em uma ferramenta dinâmica e navegável, com links diretos para aulas, acompanhamento de progresso e busca inteligente por conteúdo.
 
 ---
 
-## ✨ Funcionalidades
+## Sobre o Projeto
 
-- **Interface Web Simples:** Uma interface amigável criada com Streamlit que guia o usuário pelo processo de scraping, junção de dados e exploração dos cursos.
-- **Autenticação Segura:** O usuário insere suas credenciais, que são usadas para criar uma sessão autenticada para o scraping dos dados.
-- **Scraping Concorrente:** Utiliza multithreading para acelerar o processo de busca pelos detalhes das aulas, fazendo múltiplas requisições em paralelo.
-- **Status de Conclusão:** O scraper coleta o status de conclusão de cada aula diretamente da plataforma.
-- **Junção Inteligente de Dados:** Emprega a biblioteca `thefuzz` para fazer a correspondência entre os nomes dos módulos/cursos no plano de estudos e os nomes extraídos da plataforma, mesmo que não sejam idênticos.
-- **Dashboard e Busca Fuzzy Adaptativa:** Visualize seu progresso geral, filtre por trilha, busque por termos aproximados (inclusive com erros de digitação) e navegue diretamente para cada aula. Na página de exploração dos cursos ("Jornada Courses"), a busca fuzzy adapta-se ao termo digitado: para termos de uma palavra, faz correspondência por palavra; para termos com múltiplas palavras, busca primeiro por frase e depois por palavra se necessário.
-- **Relevância dos Resultados:** A busca mostra o score de relevância de cada resultado.
-- **Exportação de Resultados:** Gera um arquivo CSV final com o plano de estudos original enriquecido com colunas de link da aula e status de conclusão.
+O acelerador de carreiras da Jornada de Dados oferece um plano de estudos personalizado em CSV, baseado nas respostas de um questionário. Este projeto foi criado para automatizar e facilitar o acesso ao conteúdo real da plataforma, conectando o plano às trilhas, cursos, módulos e aulas disponíveis, enriquecendo-o com links diretos e status de progresso.  
+O sistema faz scraping autenticado, aplica correspondência difusa (fuzzy matching) para encontrar o melhor link de aula para cada item do plano, e oferece visualização, edição e acompanhamento do progresso em uma interface web moderna com **Streamlit**.
+
+**Tudo acontece localmente:** os dados, progresso e credenciais são processados e armazenados apenas no seu computador, garantindo privacidade e performance.
 
 ---
 
-## 📂 Estrutura do Projeto
+## Principais Funcionalidades
+
+- **Scraping Autenticado:** Extração automática de todas as trilhas, cursos, módulos e aulas da Jornada de Dados, incluindo links diretos para cada aula e status de conclusão.
+- **Enriquecimento do Plano:** Correspondência inteligente (fuzzy match com `thefuzz`) entre o plano do acelerador (CSV) e os dados reais da plataforma, atribuindo o melhor link de aula possível a cada item.
+- **Banco de Dados Local:** Todo o progresso e dados extraídos ficam em SQLite local (`dados/jornada_data.db`), permitindo buscas rápidas e persistência entre sessões.
+- **Dashboard Visual:** Acompanhe o progresso total e por trilha, marque aulas como concluídas, edite e navegue pelo plano de estudos diretamente pela interface.
+- **Busca Avançada nos Cursos:** Pesquise por qualquer termo (curso, módulo, tema, palavra-chave) usando busca textual inteligente (FTS5 no SQLite), filtrando por trilhas e visualizando relevância dos resultados.
+- **Interface Web:** Navegação intuitiva por páginas (Scraper, Dashboard, Explorador de Cursos) via Streamlit.
+- **Pronto para Docker:** Deploy simples e portátil em container Docker.
+
+---
+
+## Estrutura do Projeto
 
 ```
 PLANO_JORNADA/
 │
 ├── dados/
-│   ├── plano_de_estudos.csv              # INPUT: Seu plano de estudos.
-│   ├── cursos_jornada.csv                # OUTPUT: Gerado pelo scraper.
-│   ├── plano_de_estudos_com_links.csv    # OUTPUT: O resultado final com links e status.
+│   └── jornada_data.db                # Banco SQLite local (criado automaticamente)
 │
 ├── modules/
-│   ├── authenticator.py                  # Autenticação na plataforma.
-│   ├── scraper.py                        # Lógica completa de scraping.
-│   ├── data_joiner.py                    # Junção e enriquecimento dos dados via fuzzy matching.
+│   ├── authenticator.py               # Login na plataforma Jornada de Dados
+│   ├── data_joiner.py                 # Junção/enriquecimento do plano (fuzzy match)
+│   ├── database_manager.py            # Operações de banco de dados e busca FTS
+│   ├── scraper.py                     # Scraper principal dos cursos/módulos/aulas
 │
 ├── pages/
-│   ├── 1_scraper_page.py                 # Página Streamlit para scraping e junção.
-│   ├── 2_dashboard_page.py               # Página Streamlit para visualização do progresso.
-│   ├── 3_jornada_courses_page.py         # NOVA: Página Streamlit para exploração de cursos e busca fuzzy.
-├── app.py                                # Página inicial da aplicação Streamlit.
-├── requirements.txt                      # Lista de dependências do projeto.
-├── README.md                             # Este arquivo.
+│   ├── 1_scraper_page.py              # Página: Scraping e junção do plano
+│   ├── 2_dashboard_page.py            # Página: Dashboard do plano de estudos
+│   ├── 3_jornada_courses_page.py      # Página: Explorador dos cursos e busca avançada
+│
+├── app.py                            # Página inicial/menu principal
+├── requirements.txt                   # Dependências Python
+├── Dockerfile                         # Build e execução via Docker
 ├── .gitignore
+├── README.md
 ```
 
 ---
 
-## 🚀 Como Configurar e Executar
-
-Siga os passos abaixo para executar o projeto localmente.
+## Instalação e Execução
 
 ### 1. Pré-requisitos
 
-- Python 3.8 ou superior.
+- **Python 3.8 ou superior** (recomenda-se Python 3.11)
+- **pip** instalado
+- **Git** para clonar o repositório
 
-### 2. Instalação
-
-Clone este repositório e crie um ambiente virtual:
-
-```bash
-# Criar ambiente virtual
-python -m venv .venv
-
-# Ativar o ambiente virtual (Windows)
-.venv\Scripts\activate
-
-# Ativar o ambiente virtual (macOS/Linux)
-source .venv/bin/activate
-```
-
-Instale as dependências:
+### 2. Clone o Repositório (Etapa Universal)
 
 ```bash
-pip install -r requirements.txt
+git clone https://github.com/stolpe22/plano_jornada.git
+cd plano_jornada
 ```
 
-### 3. Preparar o Plano de Estudos
+### 3. Instalação por Sistema Operacional
 
-- Crie a pasta `dados` na raiz do projeto, caso não exista.
-- Coloque o seu arquivo CSV de plano de estudos como `plano_de_estudos.csv` dentro da pasta `dados`.
-- O CSV deve ter pelo menos as colunas **Trilha** e **Módulo** (ou equivalentes).
+#### **Windows**
 
-### 4. Executar a Aplicação
+1. **Crie e ative o ambiente virtual:**
+   ```cmd
+   python -m venv .venv
+   .venv\Scripts\activate
+   ```
 
-Com o ambiente virtual ativado, rode:
+2. **Instale as dependências:**
+   ```cmd
+   pip install -r requirements.txt
+   ```
 
-```bash
-streamlit run app.py
-```
-
-A interface abrirá no navegador.
-
----
-
-## 📖 Como Usar
-
-A aplicação está dividida em várias páginas principais na barra lateral do Streamlit:
-
-### 1. Scraper & Junção
-
-- Insira seu e-mail e senha da plataforma Jornada de Dados.
-- Clique em **"Fazer Scraping Agora"** para coletar todos os dados de cursos, módulos e aulas, incluindo links e status de conclusão.
-- Após o scraping, clique em **"Gerar Links no Plano de Estudos"** para fazer a junção entre seu plano e os dados coletados, gerando o arquivo enriquecido `plano_de_estudos_com_links.csv`.
-
-### 3. Dashboard Plano de Estudos
-
-- Visualize seu progresso geral e por trilha.
-- Veja métricas, barras de progresso e uma tabela interativa com links diretos para cada aula. É possível marcar aulas como concluídas diretamente pela interface.
-
-### 3. Exploração dos Cursos (Busca Fuzzy)
-
-- Acesse a página **"Explorador de Cursos da Jornada"**.
-- Filtre por trilha, busque por termos (inclusive aproximados, com tolerância a erros de digitação), e ajuste a sensibilidade da busca fuzzy.
-- Veja o score de relevância, acesse links diretos para as aulas, visualize sumário e conteúdo completo, e marque aulas como concluídas.
-- A busca utiliza tanto correspondência por frase quanto por aproximação de palavra para garantir os melhores resultados.
+3. **Execute o app:**
+   ```cmd
+   streamlit run app.py
+   ```
+   O navegador abrirá automaticamente. Se não abrir, acesse [http://localhost:8501](http://localhost:8501).
 
 ---
 
-## 🛠️ Tecnologias Utilizadas
+#### **Linux / MacOS / WSL (Windows Subsystem for Linux)**
 
-- **Streamlit:** Interface web interativa.
-- **Requests & BeautifulSoup4:** Comunicação HTTP e parsing do HTML.
-- **Pandas:** Manipulação de dados e geração dos CSVs.
-- **TheFuzz (FuzzyWuzzy):** Correspondência difusa de texto.
-- **Concurrent.futures:** Multithreading para acelerar scraping.
-- **Os, Json:** Utilidades para manipulação de arquivos e dados.
+1. **Crie e ative o ambiente virtual:**
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate
+   ```
+
+2. **Instale as dependências:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+3. **Execute o app:**
+   ```bash
+   streamlit run app.py
+   ```
+   O app estará disponível em [http://localhost:8501](http://localhost:8501).
 
 ---
 
-## 👨‍💻 Contribuição
+## Execução com Docker (Opcional)
 
-Pull requests são bem-vindos! Sinta-se à vontade para abrir issues ou sugerir melhorias.
+**Antes de iniciar, esteja no diretório raiz do projeto (`plano_jornada`).**
+
+1. **Build da imagem:**
+   ```bash
+   docker build -t jornada-planner .
+   ```
+
+2. **Execute o container:**
+
+   - **No Linux, MacOS ou WSL:**
+     ```bash
+     docker run -p 8501:8501 -v $(pwd)/dados:/app/dados jornada-planner
+     ```
+
+   - **No Windows (PowerShell):**
+     ```powershell
+     docker run -p 8501:8501 -v ${PWD}\dados:/app/dados jornada-planner
+     ```
+
+   - **No Windows (CMD):**
+     ```cmd
+     docker run -p 8501:8501 -v %cd%\dados:/app/dados jornada-planner
+     ```
+
+   O app estará disponível em [http://localhost:8501](http://localhost:8501).
 
 ---
 
-## 📎 Observações
+## Fluxo e Como Usar
 
-- O scraper pode demorar alguns minutos, dependendo da quantidade de cursos e módulos.
-- Certifique-se que seu plano está padronizado para melhores resultados na correspondência.
-- O status de conclusão das aulas é extraído diretamente da plataforma, permitindo acompanhamento do progresso.
-- A exploração dos cursos permite busca inteligente, útil para encontrar conteúdos mesmo com nomes não exatos ou erros comuns de digitação.
+1. **Scraper e Junção**
+   - Faça upload do CSV do seu plano (recebido pelo acelerador).
+   - Insira suas credenciais da Jornada de Dados.
+   - Execute o scraping da plataforma.
+   - Gere os links/status para cada módulo/aula do seu plano.
+
+2. **Dashboard**
+   - Visualize seu progresso geral e por trilha.
+   - Marque aulas como concluídas, edite o plano, navegue por links diretos.
+
+3. **Cursos da Jornada**
+   - Pesquise por palavra, frase ou tema.
+   - Filtre por trilha.
+   - Veja resultados ranqueados por relevância, acesse conteúdo e links.
+
+**Todos os dados e edições são salvos automaticamente no banco local.**
+
+---
+
+## Tecnologias Utilizadas
+
+- **Streamlit:** Interface web interativa e páginas
+- **Requests + BeautifulSoup:** Scraping autenticado do HTML da plataforma
+- **Pandas:** Manipulação e análise dos dados
+- **TheFuzz:** Fuzzy matching para correspondência inteligente entre nomes
+- **SQLite + FTS5:** Banco local rápido com busca textual avançada e persistência
+- **Docker:** Deploy fácil e portátil para qualquer ambiente
+
+---
+
+## Observações Detalhadas
+
+- Todo processamento ocorre **localmente**: credenciais, progresso e dados ficam só na sua máquina.
+- O scraping pode levar alguns minutos, dependendo do volume de cursos/módulos no seu plano.
+- A busca textual nos cursos usa FTS5 (Full Text Search) do SQLite, retornando resultados ranqueados por relevância.
+- O dashboard permite edição e marcação interativa do progresso, com salvamento automático no banco.
+- O plano enriquecido pode ser baixado como CSV, já com links e status de cada aula.
+
+---
+
+## Contribuição & Suporte
+
+Sugestões, melhorias e pull requests são muito bem-vindos!  
+Abra uma issue ou contribua diretamente pelo [repositório oficial](https://github.com/stolpe22/plano_jornada).
 
 ---
