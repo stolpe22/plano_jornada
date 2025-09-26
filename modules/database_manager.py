@@ -9,28 +9,22 @@ from bs4 import BeautifulSoup
 DB_PATH = 'dados/jornada_data.db'
 
 def init_db():
-    """
-    Inicializa o banco de dados e cria as tabelas, incluindo a tabela virtual FTS5 e os gatilhos de sincronização.
-    """
     os.makedirs('dados', exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
+    # ... (código da tabela 'cursos' e FTS não muda) ...
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS cursos (
         trilha_nome TEXT, curso_nome TEXT, curso_link TEXT, modulo_id INTEGER,
         modulo_nome TEXT, aula_id INTEGER PRIMARY KEY, aula_nome TEXT, aula_slug TEXT,
         aula_link TEXT, aula_concluida BOOLEAN, aula_sumario TEXT, aula_conteudo_html TEXT
-    )
-    ''')
-
+    )''')
     cursor.execute('''
     CREATE VIRTUAL TABLE IF NOT EXISTS cursos_fts USING fts5(
         trilha_nome, curso_nome, modulo_nome, aula_nome, aula_sumario, aula_conteudo,
         content='cursos', content_rowid='aula_id', tokenize = 'unicode61'
-    )
-    ''')
-
+    )''')
     cursor.executescript('''
     CREATE TRIGGER IF NOT EXISTS cursos_ai AFTER INSERT ON cursos BEGIN
       INSERT INTO cursos_fts(rowid, trilha_nome, curso_nome, modulo_nome, aula_nome, aula_sumario, aula_conteudo)
@@ -48,36 +42,68 @@ def init_db():
     END;
     ''')
 
+    # --- MUDANÇA AQUI ---
+    # Adicionamos a coluna "Dias Necessários". Usamos TEXT para ser mais flexível.
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS plano_estudos (
-        "Trilha" TEXT, "Módulo" TEXT, "Carga Horária (h)" REAL, 
-        "aula_link" TEXT, "aula_concluida" BOOLEAN
+        "id" INTEGER PRIMARY KEY AUTOINCREMENT,
+        "Trilha" TEXT,
+        "Módulo" TEXT,
+        "Carga Horária (h)" REAL,
+        "Dias Necessários" TEXT,
+        "Objetivo" TEXT,
+        "aula_link" TEXT,
+        "aula_concluida" BOOLEAN
     )''')
 
     conn.commit()
     conn.close()
 
 def save_df_to_db(df, table_name):
+    """
+    Salva um DataFrame no banco de dados. Usa DELETE + APPEND para preservar a estrutura da tabela (como a chave primária 'id').
+    """
     try:
         conn = sqlite3.connect(DB_PATH)
-        if table_name == 'cursos':
-            cursor = conn.cursor()
-            cursor.execute("DELETE FROM cursos")
-            conn.commit()
-            
-            if 'aula_conteudo_html' in df.columns:
-                 df['aula_conteudo_html'] = df['aula_conteudo_html'].fillna('').apply(
-                     lambda x: BeautifulSoup(x, 'html.parser').get_text(separator=' ', strip=True)
-                 )
-            df.to_sql(table_name, conn, if_exists='append', index=False)
-        else:
-            df.to_sql(table_name, conn, if_exists='replace', index=False)
+        cursor = conn.cursor()
+        
+        # Limpa a tabela antes de inserir novos dados
+        cursor.execute(f"DELETE FROM {table_name}")
+        conn.commit()
+        
+        if table_name == 'cursos' and 'aula_conteudo_html' in df.columns:
+            df['aula_conteudo_html'] = df['aula_conteudo_html'].fillna('').apply(
+                lambda x: BeautifulSoup(x, 'html.parser').get_text(separator=' ', strip=True)
+            )
+        
+        # Insere os dados do DataFrame. Se o DF não tiver 'id', o DB vai gerar. Se tiver, ele vai usar.
+        df.to_sql(table_name, conn, if_exists='append', index=False)
+        
         conn.close()
         return True
     except Exception as e:
         print(f"Erro ao salvar no banco de dados: {e}")
         return False
 
+# --- MUDANÇA AQUI ---
+# A função agora usa o 'id' para ser mais precisa e eficiente
+def update_aula_status(item_id, novo_status):
+    """
+    Atualiza o status de 'aula_concluida' para um item específico do plano usando seu ID.
+    """
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        query = 'UPDATE plano_estudos SET "aula_concluida" = ? WHERE "id" = ?'
+        cursor.execute(query, (novo_status, item_id))
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"Erro ao atualizar status da aula: {e}")
+        return False
+        
+# ... (o resto das funções, search_courses, load_table_to_df, etc., permanecem iguais) ...
 def search_courses(query):
     conn = sqlite3.connect(DB_PATH)
     sql_query = """
@@ -95,19 +121,13 @@ def search_courses(query):
     df = pd.read_sql_query(sql_query, conn, params=(fts_query,))
     conn.close()
     return df
-
 def load_table_to_df(table_name):
-    if not os.path.exists(DB_PATH):
-        return pd.DataFrame()
+    if not os.path.exists(DB_PATH): return pd.DataFrame()
     try:
         conn = sqlite3.connect(DB_PATH)
-        query = f"SELECT * FROM {table_name}"
-        df = pd.read_sql_query(query, conn)
+        df = pd.read_sql_query(f"SELECT * FROM {table_name}", conn)
         conn.close()
         return df
-    except pd.io.sql.DatabaseError:
-        return pd.DataFrame()
-
+    except pd.io.sql.DatabaseError: return pd.DataFrame()
 def table_exists_and_has_data(table_name):
-    df = load_table_to_df(table_name)
-    return not df.empty
+    return not load_table_to_df(table_name).empty
