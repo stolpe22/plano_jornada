@@ -8,11 +8,19 @@ st.set_page_config(page_title="Plano de Estudos", layout="wide")
 
 st.title("📊 Dashboard do Plano de Estudos")
 
+# --- MUDANÇA AQUI: Inicializa o estado do filtro no session_state ---
+# Por padrão, vamos ocultar os concluídos para focar no que falta
+if 'mostrar_concluidos' not in st.session_state:
+    st.session_state.mostrar_concluidos = False
+
 def carregar_plano():
     df = dbm.load_table_to_df('plano_estudos')
     if not df.empty and 'aula_concluida' in df.columns:
         df['aula_concluida'] = df['aula_concluida'].fillna(False).astype(bool)
         df['Carga Horária (h)'] = pd.to_numeric(df['Carga Horária (h)'], errors='coerce').fillna(0)
+
+        # --- MUDANÇA AQUI: Cria a nova coluna visual de Status ---
+        df['Status'] = df['aula_concluida'].apply(lambda x: "✅ Concluído" if x else "🕒 Pendente")
     return df
 
 df_plano = carregar_plano()
@@ -45,29 +53,50 @@ else:
 
     # --- Tabela Detalhada Interativa com ID ---
     st.markdown("### Detalhes do Plano de Estudos")
+
+    # --- MUDANÇA AQUI: Adiciona o botão de toggle ---
+    st.toggle("Mostrar aulas concluídas", key="mostrar_concluidos")
+
+    # Prepara o DataFrame para exibição, aplicando o filtro se necessário
+    df_para_exibir = df_plano.copy()
+    if not st.session_state.mostrar_concluidos:
+        df_para_exibir = df_para_exibir[df_para_exibir['aula_concluida'] == False]
     
-    # Guarda o estado original no session_state para comparação
     if 'plano_original' not in st.session_state:
         st.session_state.plano_original = df_plano.copy()
 
+    # O editor de dados agora usa o DataFrame filtrado para a exibição
     df_editado = st.data_editor(
-        df_plano,
+        df_para_exibir,
+        # ... (a configuração do data_editor permanece a mesma) ...
         column_config={
-            # --- MUDANÇA AQUI ---
-            # Escondemos a coluna 'id' do usuário, mas ela ainda existe nos dados
-            "id": None,
-            "aula_link": st.column_config.LinkColumn("Link da Aula", display_text="▶️ Abrir Aula"),
-            "aula_concluida": st.column_config.CheckboxColumn("Concluída?", default=False)
+            "id": None, "Status": st.column_config.TextColumn("Status", width="medium"),
+            "aula_link": st.column_config.LinkColumn("Link da Aula", display_text="▶️ Abrir"),
+            "aula_concluida": st.column_config.CheckboxColumn("Marcar/Desmarcar", default=False),
+            "Trilha": st.column_config.TextColumn("Trilha", width="large"),
+            "Módulo": st.column_config.TextColumn("Módulo", width="large"),
+            "Objetivo": st.column_config.TextColumn("Objetivo", width="large"),
+            "Carga Horária (h)": st.column_config.NumberColumn("Horas", format="%.1f h"),
+            "Dias Necessários": st.column_config.TextColumn("Dias"),
         },
+        column_order=[
+            "aula_concluida", "Status", "Trilha", "Módulo", "aula_link","Objetivo", "Carga Horária (h)", 
+            "Dias Necessários"
+        ],
         hide_index=True,
         use_container_width=True,
         key="editor_plano"
     )
 
-    # Compara o DataFrame de antes com o de depois para encontrar mudanças
-    if not st.session_state.plano_original.equals(df_editado):
-        # Encontra as linhas alteradas (comparando pela coluna 'aula_concluida')
-        mudancas = st.session_state.plano_original['aula_concluida'] != df_editado['aula_concluida']
+    # --- LÓGICA DE DETECÇÃO DE MUDANÇAS CORRIGIDA ---
+
+    # 1. Pega o estado original APENAS das linhas que foram exibidas
+    df_original_exibido = st.session_state.plano_original.loc[df_editado.index]
+
+    # 2. Compara o subconjunto original com o DataFrame editado. Agora eles têm o mesmo tamanho e índice.
+    if not df_original_exibido.equals(df_editado):
+        # Encontra as linhas alteradas dentro deste subconjunto
+        mudancas = df_original_exibido['aula_concluida'] != df_editado['aula_concluida']
         linhas_alteradas = df_editado[mudancas]
         
         for index, row in linhas_alteradas.iterrows():
@@ -78,5 +107,6 @@ else:
             dbm.update_aula_status(item_id, novo_status)
 
         # Atualiza o estado da sessão com os novos dados e força um recarregamento para as métricas
-        st.session_state.plano_original = df_editado.copy()
+        # Carregamos novamente do DB para garantir consistência total
+        st.session_state.plano_original = carregar_plano().copy()
         st.rerun()
