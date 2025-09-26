@@ -1,4 +1,4 @@
-# scraper_page.py
+# pages/1_scraper_page.py
 
 import streamlit as st
 import pandas as pd

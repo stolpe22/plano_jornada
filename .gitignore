@@ -3,7 +3,4 @@
 __pycache__
 
 
-
-plano_de_estudos.csv
-
-plano_de_estudos_com_links.csv
+*.csv

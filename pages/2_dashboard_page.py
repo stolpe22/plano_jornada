@@ -1,4 +1,4 @@
-# dashboard_page.py
+# pages/2_dashboard_page.py
 
 import streamlit as st
 import pandas as pd
