@@ -8,8 +8,7 @@ st.set_page_config(page_title="Plano de Estudos", layout="wide")
 
 st.title("📊 Dashboard do Plano de Estudos")
 
-# --- MUDANÇA AQUI: Inicializa o estado do filtro no session_state ---
-# Por padrão, vamos ocultar os concluídos para focar no que falta
+# Inicializa o estado do filtro no session_state
 if 'mostrar_concluidos' not in st.session_state:
     st.session_state.mostrar_concluidos = False
 
@@ -18,8 +17,6 @@ def carregar_plano():
     if not df.empty and 'aula_concluida' in df.columns:
         df['aula_concluida'] = df['aula_concluida'].fillna(False).astype(bool)
         df['Carga Horária (h)'] = pd.to_numeric(df['Carga Horária (h)'], errors='coerce').fillna(0)
-
-        # --- MUDANÇA AQUI: Cria a nova coluna visual de Status ---
         df['Status'] = df['aula_concluida'].apply(lambda x: "✅ Concluído" if x else "🕒 Pendente")
     return df
 
@@ -29,6 +26,19 @@ if df_plano.empty:
     st.warning("Ainda não há um plano de estudos no banco de dados.")
     st.info("Por favor, vá para a página 'Scraper e Junção' e carregue seu arquivo .csv.")
 else:
+    # --- MUDANÇA AQUI: Adiciona o novo filtro de Trilha na barra lateral ---
+    st.sidebar.header("🔎 Filtros do Dashboard")
+    trilhas_disponiveis = sorted(df_plano['Trilha'].dropna().unique().tolist())
+    select_all = st.sidebar.checkbox("Selecionar Todas as Trilhas", value=True, key="select_all_trilhas_dash")
+    
+    default_selection = trilhas_disponiveis if select_all else []
+    trilhas_selecionadas = st.sidebar.multiselect(
+        "Filtrar por Trilha:",
+        options=trilhas_disponiveis,
+        default=default_selection,
+        key="multiselect_trilhas_dash"
+    )
+
     # --- Métricas e Progresso (sem alterações) ---
     st.markdown("### Métricas Gerais")
     total_aulas = len(df_plano)
@@ -44,31 +54,37 @@ else:
     st.progress(progresso_percentual / 100, text=f"{progresso_percentual:.1f}% Concluído")
     st.divider()
     st.markdown("### Progresso por Trilha")
-    progresso_trilha = df_plano.groupby('Trilha').agg(total_aulas=('Módulo', 'count'), aulas_concluidas=('aula_concluida', 'sum')).reset_index()
+    # Filtra o progresso para mostrar apenas as trilhas selecionadas
+    progresso_trilha_filtrado = df_plano[df_plano['Trilha'].isin(trilhas_selecionadas)]
+    progresso_trilha = progresso_trilha_filtrado.groupby('Trilha').agg(total_aulas=('Módulo', 'count'), aulas_concluidas=('aula_concluida', 'sum')).reset_index()
     progresso_trilha['progresso_%'] = progresso_trilha.apply(lambda row: (row['aulas_concluidas'] / row['total_aulas'] * 100) if row['total_aulas'] > 0 else 0, axis=1).round(1)
     for index, row in progresso_trilha.iterrows():
         st.markdown(f"**{row['Trilha']}**")
         st.progress(row['progresso_%'] / 100, text=f"{row['progresso_%']}% concluído ({int(row['aulas_concluidas'])} de {int(row['total_aulas'])} aulas)")
     st.divider()
 
-    # --- Tabela Detalhada Interativa com ID ---
     st.markdown("### Detalhes do Plano de Estudos")
-
-    # --- MUDANÇA AQUI: Adiciona o botão de toggle ---
     st.toggle("Mostrar aulas concluídas", key="mostrar_concluidos")
 
-    # Prepara o DataFrame para exibição, aplicando o filtro se necessário
+    # --- MUDANÇA AQUI: A lógica de filtro agora inclui as trilhas selecionadas ---
     df_para_exibir = df_plano.copy()
+
+    # 1. Filtro de trilhas selecionadas na barra lateral
+    if trilhas_selecionadas:
+        df_para_exibir = df_para_exibir[df_para_exibir['Trilha'].isin(trilhas_selecionadas)]
+    else:
+        # Se nada for selecionado, mostra uma tabela vazia
+        df_para_exibir = df_para_exibir.head(0)
+
+    # 2. Filtro de concluídos
     if not st.session_state.mostrar_concluidos:
         df_para_exibir = df_para_exibir[df_para_exibir['aula_concluida'] == False]
     
     if 'plano_original' not in st.session_state:
         st.session_state.plano_original = df_plano.copy()
 
-    # O editor de dados agora usa o DataFrame filtrado para a exibição
     df_editado = st.data_editor(
         df_para_exibir,
-        # ... (a configuração do data_editor permanece a mesma) ...
         column_config={
             "id": None, "Status": st.column_config.TextColumn("Status", width="medium"),
             "aula_link": st.column_config.LinkColumn("Link da Aula", display_text="▶️ Abrir"),
@@ -88,25 +104,16 @@ else:
         key="editor_plano"
     )
 
-    # --- LÓGICA DE DETECÇÃO DE MUDANÇAS CORRIGIDA ---
-
-    # 1. Pega o estado original APENAS das linhas que foram exibidas
+    # Lógica de detecção de mudanças (sem alterações)
     df_original_exibido = st.session_state.plano_original.loc[df_editado.index]
-
-    # 2. Compara o subconjunto original com o DataFrame editado. Agora eles têm o mesmo tamanho e índice.
     if not df_original_exibido.equals(df_editado):
-        # Encontra as linhas alteradas dentro deste subconjunto
         mudancas = df_original_exibido['aula_concluida'] != df_editado['aula_concluida']
         linhas_alteradas = df_editado[mudancas]
         
         for index, row in linhas_alteradas.iterrows():
             item_id = row['id']
             novo_status = row['aula_concluida']
-            
-            # Salva a mudança no banco de dados usando o ID
             dbm.update_aula_status(item_id, novo_status)
 
-        # Atualiza o estado da sessão com os novos dados e força um recarregamento para as métricas
-        # Carregamos novamente do DB para garantir consistência total
         st.session_state.plano_original = carregar_plano().copy()
         st.rerun()
